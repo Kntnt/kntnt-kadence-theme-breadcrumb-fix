@@ -16,6 +16,12 @@ namespace Kntnt\Kadence_Theme_Breadcrumb_Fixes;
 
 defined( 'ABSPATH' ) && new Plugin();
 
+// Unfortunately, Kadence Theme is opinionated on how breadcrumbs should be.
+// For instance doesn't the post archive get a breadcrumb. And the breadcrumb
+// of posts themselves lacks the category base name which should link back to
+// the blog page. Also unfortunately, Kadence Theme don't provide a filter that
+// allows us to output our own breadcrumb. This plugin solves that by using the
+// few filters available.
 final class Plugin {
 
 	private $args;
@@ -31,18 +37,32 @@ final class Plugin {
 	private $the_title_hooks;
 
 	public function __construct() {
+
+		// All filters are applied in kadence/inc/components/breadcrumbs/component.php
 		add_filter( 'kadence_local_breadcrumb_args', [ $this, 'kadence_local_breadcrumb_args' ], 9999 );
 		add_filter( 'kadence_breadcrumb_args', [ $this, 'kadence_breadcrumb_args' ] );
 		add_filter( 'kadence_breadcrumbs_after_home', [ $this, 'kadence_breadcrumbs_after_home' ] );
 		add_filter( 'kadence_breadcrumb_html', [ $this, 'kadence_breadcrumb_html' ] );
+
 	}
 
 	public function kadence_local_breadcrumb_args( $args ) {
+
+		// Save the arguments for later use.
 		$this->args = $args;
+
 		return $args;
+
 	}
 
 	public function kadence_breadcrumb_args( $args ) {
+
+		// We need to save the settings for later use. Unfortunately,
+		// Kadence Theme don't provide any means to filter the settings, only
+		// to override. Therefore, following is almost an exact copy of the
+		// original settings. The only tweak is that the default delimiter /
+		// is replaced with ›. It can still be overridden by implementing the
+		// filter `kadence_breadcrumb_delimiter`.
 		$this->settings = array(
 			'home'             => true,
 			'home_icon'        => \Kadence\kadence()->option( 'breadcrumb_home_icon' ),
@@ -51,7 +71,7 @@ final class Plugin {
 			'home_link'        => home_url( '/' ),
 			'wrap_before'      => '<nav id="kadence-breadcrumbs" aria-label="' . esc_attr__( 'Breadcrumbs', 'kadence' ) . '"  class="kadence-breadcrumbs"><div class="kadence-breadcrumb-container"' . ( $this->args['color_style'] ? ' style="' . esc_attr( $this->args['color_style'] ) . '"' : '' ) . '>',
 			'wrap_after'       => '</div></nav>',
-			'delimiter'        => '»',
+			'delimiter'        => apply_filters( 'kadence_breadcrumb_delimiter', '›' ),
 			'delimiter_before' => '<span class="bc-delimiter">',
 			'delimiter_after'  => '</span>',
 			'link_before'      => '<span>',
@@ -59,18 +79,37 @@ final class Plugin {
 			'link_in_before'   => '<span>',
 			'link_in_after'    => '</span>',
 		);
+
+		// We need the HTML for the link-separator later. Unfortunately,
+		// Kadence Theme don't provide any means to filter this HTML. So we
+		// use the same code to create it.
+		$this->sep = ' ' . $this->settings['delimiter_before'] . $this->settings['delimiter'] . $this->settings['delimiter_after'] . ' ';
+
+		// We need the HTML for the printf-format string for links.
+		// Unfortunately, Kadence Theme don't provide any means to filter this
+		// HTML. So we use the same code to create it.
+		$this->link = $this->settings['link_before'] . '<a href="%1$s" itemprop="url" ' . ( $this->args['color_style'] ? 'style="' . esc_attr( $this->args['color_style'] ) . '"' : '' ) . '>' . $this->settings['link_in_before'] . '%2$s' . $this->settings['link_in_after'] . '</a>' . $this->settings['link_after'];
+
 		return $this->settings;
+
 	}
 
 	public function kadence_breadcrumbs_after_home( $html ) {
 
+		// $html contains everything up to and including the home link.
+		// Let's save it for later use.
+		$this->html = $html;
+
+		// Unfortunately, Kadence Theme gets the text of the links by passing
+		// the linked page's title through `the_title`-filters. Some plugins
+		// implement this filter to alter the title in a way that don't work
+		// in a breadcrumb. An example is EditorsKit by Extendify; it replaces
+		// the title with an empty string if the editor has checked that the
+		// title should not be outputted. The solution is to temporarily
+		// disable all filters.
 		global $wp_filter;
 		$this->the_title_hooks = $wp_filter['the_title'];
 		unset( $wp_filter['the_title'] );
-
-		$this->html = $html;
-		$this->sep  = ' ' . $this->settings['delimiter_before'] . $this->settings['delimiter'] . $this->settings['delimiter_after'] . ' ';
-		$this->link = $this->settings['link_before'] . '<a href="%1$s" itemprop="url" ' . ( $this->args['color_style'] ? 'style="' . esc_attr( $this->args['color_style'] ) . '"' : '' ) . '>' . $this->settings['link_in_before'] . '%2$s' . $this->settings['link_in_after'] . '</a>' . $this->settings['link_after'];
 
 		return $html;
 
@@ -78,10 +117,14 @@ final class Plugin {
 
 	public function kadence_breadcrumb_html( $html ) {
 
+		// Enable the previously disabled `the_title`-filters.
 		global $wp_filter;
 		$wp_filter['the_title'] = $this->the_title_hooks;
 
-		if ( ! is_front_page() && is_home() || is_category() ) {
+		// Is current page the blog page?
+		$is_blog_page = ! is_front_page() && is_home();
+
+		if ( $is_blog_page || is_category() ) {
 
 			$page          = get_post( get_option( 'page_for_posts' ) );
 			$category_name = $page->post_title;
