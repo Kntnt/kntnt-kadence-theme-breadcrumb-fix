@@ -124,20 +124,35 @@ final class Plugin {
 		// Is current page the blog page?
 		$is_blog_page = ! is_front_page() && is_home();
 
-		if ( $is_blog_page || is_category() ) {
+		// Is current page a blog post archive for a category term?
+		$is_blog_archive = is_category();
 
-			$page          = get_post( get_option( 'page_for_posts' ) );
-			$category_name = $page->post_title;
-			$category_link = get_permalink( $page );
-			$html          = $this->html;
+		// Is current page a blog post?
+		$is_blog_post = is_singular( 'post' );
 
-			if ( is_category() ) {
+		if ( $is_blog_page || $is_blog_archive || $is_blog_post ) {
 
-				$html .= sprintf( $this->link, $category_link, $category_name ) . $this->sep;
+			// Let's start over.
+			$html = $this->html;
 
-				$term      = get_queried_object();
-				$ancestors = get_ancestors( $term->term_id, $term->taxonomy );
-				$ancestors = array_reverse( $ancestors );
+			if ( $is_blog_archive || $is_blog_post ) {
+
+				// Add link to blog page.
+				$page          = get_post( get_option( 'page_for_posts' ) );
+				$category_name = $page->post_title;
+				$category_link = get_permalink( $page );
+				$html          .= sprintf( $this->link, $category_link, $category_name ) . $this->sep;
+
+				if ( $is_blog_archive ) {
+					$term      = get_queried_object();
+					$ancestors = get_ancestors( $term->term_id, $term->taxonomy );
+					$ancestors = array_reverse( $ancestors );
+				} else { // is blog post
+					$ancestors = get_the_category();
+					$ancestors = isset( $ancestors[0] ) ? [ $ancestors[0] ] : [];
+				}
+
+				// Add links to term archive(s).
 				foreach ( $ancestors as $ancestor ) {
 					$ancestor = get_term( $ancestor, 'category' );
 					$html     .= sprintf( $this->link, get_term_link( $ancestor->slug, 'category' ), $ancestor->name ) . $this->sep;
@@ -145,6 +160,7 @@ final class Plugin {
 
 			}
 
+			// Finalize the breadcrumb.
 			$html .= $this->settings['wrap_after'];
 
 		}
