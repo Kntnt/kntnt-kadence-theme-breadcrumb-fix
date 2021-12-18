@@ -143,6 +143,7 @@ final class Plugin {
 				$category_link = get_permalink( $page );
 				$html          .= sprintf( $this->link, $category_link, $category_name ) . $this->sep;
 
+				// Get the category term(s) ancestor(s).
 				if ( $is_blog_archive ) {
 					$term      = get_queried_object();
 					$ancestors = get_ancestors( $term->term_id, $term->taxonomy );
