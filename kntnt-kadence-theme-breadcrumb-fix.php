@@ -145,12 +145,17 @@ final class Plugin {
 
 				// Get the category term(s) ancestor(s).
 				if ( $is_blog_archive ) {
-					$term      = get_queried_object();
+					$term = get_queried_object();
+				} else { // is blog post
+					$term = get_the_category();
+					$term = $term[0] ?? null;
+				}
+				if ( $term ) {
 					$ancestors = get_ancestors( $term->term_id, $term->taxonomy );
 					$ancestors = array_reverse( $ancestors );
-				} else { // is blog post
-					$ancestors = get_the_category();
-					$ancestors = isset( $ancestors[0] ) ? [ $ancestors[0] ] : [];
+					if ( $is_blog_post ) {
+						$ancestors[] = $term;
+					}
 				}
 
 				// Add links to term archive(s).
